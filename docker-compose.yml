@@ -1,0 +1,144 @@
+version: '3.8'
+
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - mynetwork  
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
+      RABBITMQ_SERVER_HEARTBEAT: 50000
+
+  message_broker:
+    build: ./message_broker
+    container_name: message_broker
+    depends_on:
+      - rabbitmq
+    networks:
+      - mynetwork
+    environment:
+      PYTHONUNBUFFERED: 1
+    volumes:
+      - ./message_broker:/app
+    command: python /app/message_broker.py
+
+  db:
+    image: mysql:8.0
+    container_name: bdd_produit
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: mydatabase
+      MYSQL_USER: myuser
+      MYSQL_PASSWORD: mypassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data_produits:/var/lib/mysql
+      - ./api_produits/bdd/produits.sql:/docker-entrypoint-initdb.d/produits.sql
+    networks:
+      - mynetwork
+
+  app:
+    build: ./api_produits
+    container_name: api_produit
+    depends_on:
+      - db
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: myuser
+      DB_PASSWORD: mypassword
+      DB_NAME: mydatabase
+    volumes:
+      - ./api_produits:/usr/src/app
+    links:
+      - db
+    ports:
+      - "5000:5000"
+    networks:
+      - mynetwork  
+
+  bdd_clients:
+    image: mysql:8.0
+    container_name: bdd_clients
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: mydatabase
+      MYSQL_USER: myuser
+      MYSQL_PASSWORD: mypassword
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data_clients:/var/lib/mysql
+      - ./api_clients/bdd/clients.sql:/docker-entrypoint-initdb.d/clients.sql
+    networks:
+      - mynetwork
+
+  api_clients:
+    build: ./api_clients
+    container_name: api_clients
+    depends_on:
+      - bdd_clients
+    environment:
+      DB_HOST: bdd_clients
+      DB_PORT: 3306
+      DB_USER: myuser
+      DB_PASSWORD: mypassword
+      DB_NAME: mydatabase
+    volumes:
+      - ./api_clients:/usr/src/app
+    links:
+      - bdd_clients
+    ports:
+      - "5001:5000"
+    networks:
+      - mynetwork
+
+  bdd_commande:
+    image: mysql:8.0
+    container_name: bdd_commande
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: mydatabase
+      MYSQL_USER: myuser
+      MYSQL_PASSWORD: mypassword
+    ports:
+      - "3308:3306"
+    volumes:
+      - db_data_commandes:/var/lib/mysql
+      - ./api_commandes/bdd/commandes.sql:/docker-entrypoint-initdb.d/commandes.sql
+    networks:
+      - mynetwork
+
+  api_commande:
+    build: ./api_commandes
+    container_name: api_commande
+    depends_on:
+      - bdd_commande
+    environment:
+      DB_HOST: bdd_commande
+      DB_PORT: 3306
+      DB_USER: myuser
+      DB_PASSWORD: mypassword
+      DB_NAME: mydatabase
+    volumes:
+      - ./api_commandes:/usr/src/app
+    links:
+      - bdd_commande
+    ports:
+      - "5002:5000"
+    networks:
+      - mynetwork
+
+volumes:
+  db_data_produits:
+  db_data_clients:
+  db_data_commandes:
+
+networks:
+  mynetwork:
